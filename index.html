@@ -229,12 +229,136 @@
         @media (max-width: 600px) {
             header h1 { font-size: 1.75rem; }
         }
+
+        .header-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-top: 1.25rem;
+            flex-wrap: wrap;
+        }
+        .why-btn {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 0.6rem 1.2rem;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .why-btn:hover {
+            border-color: var(--bitcoin-orange);
+            color: var(--bitcoin-orange);
+        }
+        .donate-nav-btn {
+            background: transparent;
+            color: var(--bitcoin-orange);
+            border: 1px solid var(--bitcoin-orange);
+            padding: 0.6rem 1.2rem;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: background 0.2s, color 0.2s;
+        }
+        .donate-nav-btn:hover {
+            background: var(--bitcoin-orange);
+            color: #fff;
+        }
+
+        .why-modal-overlay, .donate-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .why-modal-overlay.open, .donate-modal-overlay.open { display: flex; }
+        .why-modal, .donate-modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            max-width: 560px;
+            width: 100%;
+            padding: 1.5rem;
+            position: relative;
+        }
+        .donate-modal { text-align: center; }
+        .why-modal h2 {
+            font-size: 1.35rem;
+            margin-bottom: 1rem;
+            color: var(--bitcoin-orange);
+        }
+        .why-modal p {
+            color: var(--muted);
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+        .why-modal-close, .donate-modal-close {
+            position: absolute;
+            top: 0.5rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 1.75rem;
+            cursor: pointer;
+        }
+        .donation-title {
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .donation-subtitle {
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+        .zap-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .zap-address {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--bitcoin-orange);
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            word-break: break-all;
+            background: rgba(15, 15, 25, 0.6);
+            padding: 0.65rem 1rem;
+            border-radius: 8px;
+            border: 1px solid rgba(247, 147, 26, 0.25);
+            text-decoration: none;
+        }
+        .copy-btn {
+            background: rgba(15, 15, 25, 0.6);
+            color: var(--muted);
+            border: 1px solid rgba(247, 147, 26, 0.25);
+            padding: 0.65rem 0.85rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .copy-btn:hover { background: rgba(247, 147, 26, 0.12); color: var(--text); }
+        .copy-btn.copied { color: var(--green); }
     </style>
 </head>
 <body>
     <header>
         <h1>Satoshi <span>Shell</span></h1>
         <p>Remove the mystery. Anyone can audit the Bitcoin network with the same simple commands a node understands. Try a question, type a command, or just read the output.</p>
+        <div class="header-actions">
+            <button class="why-btn" id="why-btn">Why we created this project</button>
+            <button class="donate-nav-btn" id="donate-nav-btn">Donate</button>
+        </div>
     </header>
 
     <main class="container">
@@ -298,11 +422,54 @@
         </section>
     </main>
 
+    <!-- Why We Created This Project Modal -->
+    <div class="why-modal-overlay" id="why-modal">
+        <div class="why-modal">
+            <button class="why-modal-close" id="why-modal-close" aria-label="Close">&times;</button>
+            <h2>Why We Created Satoshi Shell</h2>
+            <p>Most people think auditing Bitcoin means trusting a company, reading a headline, or running a full node. We built Satoshi Shell to show that the same simple commands a node uses are open, understandable, and verifiable by anyone — no special hardware required.</p>
+            <p>Type a command, click a question, or just read the output. The goal is to remove the mystery and leave you with one belief: <strong>you do not have to trust anyone to verify Bitcoin.</strong></p>
+        </div>
+    </div>
+
+    <!-- Donation Modal -->
+    <div class="donate-modal-overlay" id="donate-modal">
+        <div class="donate-modal">
+            <button class="donate-modal-close" id="donate-modal-close" aria-label="Close">&times;</button>
+            <p class="donation-title">Made with 🧨 by bitcoiners (Jon &amp; Finn) for bitcoiners</p>
+            <p class="donation-subtitle">Zaps are always welcome</p>
+            <div class="zap-row">
+                <a class="zap-address" href="lightning:jon-hodl@rizful.com" data-zap-address>⚡ jon-hodl@rizful.com</a>
+                <button class="copy-btn" data-copy-zap>Copy</button>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <p>Made with 🧨 by bitcoiners (Jon &amp; Finn) for bitcoiners.</p>
     </footer>
 
     <script>
+        // Why modal
+        document.getElementById('why-btn').addEventListener('click', () => {
+            document.getElementById('why-modal').classList.add('open');
+        });
+        document.getElementById('why-modal-close').addEventListener('click', () => {
+            document.getElementById('why-modal').classList.remove('open');
+        });
+        document.getElementById('why-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'why-modal') document.getElementById('why-modal').classList.remove('open');
+        });
+
+        // Donate modal
+        function openDonateModal() { document.getElementById('donate-modal').classList.add('open'); }
+        function closeDonateModal() { document.getElementById('donate-modal').classList.remove('open'); }
+        document.getElementById('donate-nav-btn').addEventListener('click', openDonateModal);
+        document.getElementById('donate-modal-close').addEventListener('click', closeDonateModal);
+        document.getElementById('donate-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'donate-modal') closeDonateModal();
+        });
+
         const terminal = document.getElementById('terminalBody');
         const input = document.getElementById('cliInput');
 
@@ -520,6 +687,31 @@
         // Run a friendly demo command on load.
         window.addEventListener('DOMContentLoaded', () => {
             input.focus();
+        });
+
+        // Copy zap address buttons
+        document.querySelectorAll('[data-copy-zap]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const addressEl = btn.parentElement.querySelector('[data-zap-address]');
+                const address = addressEl.textContent.replace('⚡ ', '').trim();
+                try {
+                    await navigator.clipboard.writeText(address);
+                    const original = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.textContent = original;
+                        btn.classList.remove('copied');
+                    }, 2000);
+                } catch (err) {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = address;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                }
+            });
         });
     </script>
 </body>
