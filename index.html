@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Satoshi Shell</title>
     <meta name="description" content="Run bitcoin-cli-style commands in your browser and see how anyone can audit the Bitcoin network.">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         :root {
             --bg: #0b0f19;
@@ -349,6 +350,454 @@
         }
         .copy-btn:hover { background: rgba(247, 147, 26, 0.12); color: var(--text); }
         .copy-btn.copied { color: var(--green); }
+
+        .terminal-toolbar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .toolbar-btn {
+            background: var(--surface);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .toolbar-btn:hover { border-color: var(--bitcoin-orange); color: var(--bitcoin-orange); }
+
+        .block-feed {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .block-feed-label {
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .block-feed-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+        .block-feed-status.offline {
+            background: var(--red);
+            animation: none;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .block-feed-info {
+            color: var(--text);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9rem;
+        }
+        .block-feed-info.muted { color: var(--muted); }
+
+        .node-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        .node-panel.open { display: block; }
+        .node-panel h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            color: var(--bitcoin-orange);
+        }
+        .node-panel p {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+        .node-field { margin-bottom: 0.75rem; }
+        .node-field label {
+            display: block;
+            color: var(--muted);
+            font-size: 0.8rem;
+            margin-bottom: 0.25rem;
+        }
+        .node-field input {
+            width: 100%;
+            background: var(--terminal-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .node-field input:focus { outline: none; border-color: var(--bitcoin-orange); }
+        .node-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .node-actions button {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .node-actions button.primary {
+            background: var(--bitcoin-orange);
+            color: #fff;
+            border-color: var(--bitcoin-orange);
+        }
+        .node-actions button:hover { opacity: 0.9; }
+        .node-error {
+            color: var(--red);
+            font-size: 0.85rem;
+            margin-top: 0.75rem;
+        }
+
+        .completion-hint {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            padding: 0.5rem 1rem;
+            color: var(--muted);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        #donateQr {
+            margin: 1rem auto;
+            display: block;
+            border-radius: 12px;
+            background: #fff;
+            padding: 0.5rem;
+        }
+
+        .report-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .report-modal-overlay.open { display: flex; }
+        .report-modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            max-width: 720px;
+            width: 100%;
+            padding: 1.5rem;
+            position: relative;
+        }
+        .report-modal h2 { font-size: 1.35rem; margin-bottom: 0.5rem; }
+        .report-modal-close {
+            position: absolute;
+            top: 0.5rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 1.75rem;
+            cursor: pointer;
+        }
+        .report-content {
+            background: var(--terminal-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            max-height: 50vh;
+            overflow-y: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 1rem 0;
+        }
+        .report-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+        .report-actions button {
+            background: var(--bitcoin-orange);
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .report-actions button.secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+        .report-actions button:hover { opacity: 0.9; }
+
+        .header-actions {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-top: 1.25rem;
+            flex-wrap: wrap;
+        }
+        .why-btn {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 0.6rem 1.2rem;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .why-btn:hover {
+            border-color: var(--bitcoin-orange);
+            color: var(--bitcoin-orange);
+        }
+        .donate-nav-btn {
+            background: transparent;
+            color: var(--bitcoin-orange);
+            border: 1px solid var(--bitcoin-orange);
+            padding: 0.6rem 1.2rem;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: background 0.2s, color 0.2s;
+        }
+        .donate-nav-btn:hover {
+            background: var(--bitcoin-orange);
+            color: #fff;
+        }
+
+        .terminal-toolbar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .toolbar-btn {
+            background: var(--surface);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .toolbar-btn:hover { border-color: var(--bitcoin-orange); color: var(--bitcoin-orange); }
+
+        .block-feed {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        .block-feed-label {
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .block-feed-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+        .block-feed-status.offline {
+            background: var(--red);
+            animation: none;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .block-feed-info {
+            color: var(--text);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9rem;
+        }
+        .block-feed-info.muted { color: var(--muted); }
+
+        .node-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        .node-panel.open { display: block; }
+        .node-panel h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            color: var(--bitcoin-orange);
+        }
+        .node-panel p {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+        .node-field { margin-bottom: 0.75rem; }
+        .node-field label {
+            display: block;
+            color: var(--muted);
+            font-size: 0.8rem;
+            margin-bottom: 0.25rem;
+        }
+        .node-field input {
+            width: 100%;
+            background: var(--terminal-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .node-field input:focus { outline: none; border-color: var(--bitcoin-orange); }
+        .node-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .node-actions button {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .node-actions button.primary {
+            background: var(--bitcoin-orange);
+            color: #fff;
+            border-color: var(--bitcoin-orange);
+        }
+        .node-actions button:hover { opacity: 0.9; }
+        .node-error {
+            color: var(--red);
+            font-size: 0.85rem;
+            margin-top: 0.75rem;
+        }
+
+        .completion-hint {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            padding: 0.5rem 1rem;
+            color: var(--muted);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.85rem;
+            display: none;
+        }
+
+        .report-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .report-modal-overlay.open { display: flex; }
+        .report-modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            max-width: 720px;
+            width: 100%;
+            padding: 1.5rem;
+            position: relative;
+        }
+        .report-modal h2 { font-size: 1.35rem; margin-bottom: 0.5rem; color: var(--bitcoin-orange); }
+        .report-modal-close {
+            position: absolute;
+            top: 0.5rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 1.75rem;
+            cursor: pointer;
+        }
+        .report-content {
+            background: var(--terminal-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            max-height: 50vh;
+            overflow-y: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 1rem 0;
+        }
+        .report-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+        }
+        .report-actions button {
+            background: var(--bitcoin-orange);
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .report-actions button.secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+        .report-actions button:hover { opacity: 0.9; }
+
+        #donateQr {
+            margin: 1rem auto;
+            display: block;
+            border-radius: 12px;
+            background: #fff;
+            padding: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -385,6 +834,41 @@
             </div>
         </section>
 
+        <div class="block-feed" id="blockFeed">
+            <div class="block-feed-label">
+                <span class="block-feed-status" id="blockFeedStatus"></span>
+                Live blocks
+            </div>
+            <div class="block-feed-info muted" id="blockFeedInfo">Connecting to mempool.space…</div>
+        </div>
+
+        <div class="terminal-toolbar">
+            <button class="toolbar-btn" id="node-toggle-btn">Connect your own node</button>
+            <button class="toolbar-btn" id="report-btn">Report</button>
+        </div>
+
+        <div class="node-panel" id="nodePanel">
+            <h3>Connect your own node</h3>
+            <p>Advanced / experimental. Route commands through your own Bitcoin Core RPC instead of mempool.space. Most browsers block RPC calls to local nodes because of CORS — this may fail unless you use a proxy.</p>
+            <div class="node-field">
+                <label for="rpcUrl">RPC URL</label>
+                <input type="text" id="rpcUrl" placeholder="http://127.0.0.1:8332">
+            </div>
+            <div class="node-field">
+                <label for="rpcUser">Username</label>
+                <input type="text" id="rpcUser" placeholder="rpcuser">
+            </div>
+            <div class="node-field">
+                <label for="rpcPass">Password</label>
+                <input type="password" id="rpcPass" placeholder="rpcpassword">
+            </div>
+            <div class="node-actions">
+                <button class="primary" id="enable-node-btn">Enable</button>
+                <button id="disable-node-btn">Disable / use mempool.space</button>
+            </div>
+            <div class="node-error" id="nodeError"></div>
+        </div>
+
         <section class="terminal">
             <div class="terminal-header">
                 <span class="dot red"></span>
@@ -395,13 +879,14 @@
             <div class="terminal-body" id="terminalBody">
                 <div class="terminal-line note">Welcome to the Satoshi Shell.</div>
                 <div class="terminal-line note">Data comes from mempool.space, a community-run Bitcoin explorer. A real node returns the exact same values for most commands.</div>
-                <div class="terminal-line note">Type 'help' to see available commands.</div>
+                <div class="terminal-line note">Type 'help' to see available commands. Use ↑ / ↓ for history, Tab to complete.</div>
                 <div class="terminal-line prompt">bitcoin-cli&gt;</div>
             </div>
             <form class="terminal-input-row" onsubmit="event.preventDefault(); handleInput();">
                 <label for="cliInput">bitcoin-cli&gt;</label>
                 <input type="text" id="cliInput" placeholder="enter a command..." autocomplete="off" autofocus>
                 <button type="submit">Run</button>
+                <div class="completion-hint" id="completionHint"></div>
             </form>
         </section>
 
@@ -410,14 +895,22 @@
             <div class="ref-grid">
                 <div class="ref-item"><code>getblockcount</code><span>Current block height.</span></div>
                 <div class="ref-item"><code>getbestblockhash</code><span>Hash of the latest block.</span></div>
+                <div class="ref-item"><code>getblockhash &lt;height&gt;</code><span>Hash of a block at a given height.</span></div>
+                <div class="ref-item"><code>getblock &lt;hash&gt;</code><span>Detailed info about a block.</span></div>
                 <div class="ref-item"><code>gettxoutsetinfo</code><span>Total issued BTC and UTXO stats (estimated here).</span></div>
                 <div class="ref-item"><code>getmempoolinfo</code><span>Pending transactions and mempool fees.</span></div>
                 <div class="ref-item"><code>getnetworkhashps</code><span>Network hashrate / security.</span></div>
                 <div class="ref-item"><code>getdifficulty</code><span>Mining difficulty (approximate).</span></div>
+                <div class="ref-item"><code>getmininginfo</code><span>Hashrate, difficulty, and height summary.</span></div>
                 <div class="ref-item"><code>getblockchaininfo</code><span>Chain status, height, and soft-fork info.</span></div>
                 <div class="ref-item"><code>estimatesmartfee</code><span>Fee estimate for next block.</span></div>
                 <div class="ref-item"><code>getrawmempool</code><span>List of pending transaction IDs.</span></div>
+                <div class="ref-item"><code>getrawtransaction &lt;txid&gt;</code><span>Raw transaction hex.</span></div>
+                <div class="ref-item"><code>decoderawtransaction &lt;hex|txid&gt;</code><span>Decode a raw transaction.</span></div>
+                <div class="ref-item"><code>validateaddress &lt;address&gt;</code><span>Check whether a Bitcoin address is well-formed.</span></div>
+                <div class="ref-item"><code>getpeerinfo</code><span>Mock peer info (requires a real node for actual data).</span></div>
                 <div class="ref-item"><code>help</code><span>Show this list.</span></div>
+                <div class="ref-item"><code>clear</code><span>Clear the terminal.</span></div>
             </div>
         </section>
     </main>
@@ -438,9 +931,24 @@
             <button class="donate-modal-close" id="donate-modal-close" aria-label="Close">&times;</button>
             <p class="donation-title">Made with 🧨 by bitcoiners (Jon &amp; Finn) for bitcoiners</p>
             <p class="donation-subtitle">Zaps are always welcome</p>
+            <canvas id="donateQr" width="180" height="180"></canvas>
             <div class="zap-row">
                 <a class="zap-address" href="lightning:jon-hodl@rizful.com" data-zap-address>⚡ jon-hodl@rizful.com</a>
                 <button class="copy-btn" data-copy-zap>Copy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div class="report-modal-overlay" id="report-modal">
+        <div class="report-modal">
+            <button class="report-modal-close" id="report-modal-close" aria-label="Close">&times;</button>
+            <h2>Audit Report</h2>
+            <p style="color: var(--muted); font-size: 0.85rem;">A plain-text summary of commands run during this session.</p>
+            <pre class="report-content" id="reportContent">No commands recorded yet.</pre>
+            <div class="report-actions">
+                <button class="secondary" id="reset-report-btn">Reset</button>
+                <button id="print-report-btn">Print</button>
             </div>
         </div>
     </div>
@@ -450,7 +958,7 @@
     </footer>
 
     <script>
-        // Why modal
+        // Modals
         document.getElementById('why-btn').addEventListener('click', () => {
             document.getElementById('why-modal').classList.add('open');
         });
@@ -461,8 +969,10 @@
             if (e.target.id === 'why-modal') document.getElementById('why-modal').classList.remove('open');
         });
 
-        // Donate modal
-        function openDonateModal() { document.getElementById('donate-modal').classList.add('open'); }
+        function openDonateModal() {
+            document.getElementById('donate-modal').classList.add('open');
+            renderDonateQr();
+        }
         function closeDonateModal() { document.getElementById('donate-modal').classList.remove('open'); }
         document.getElementById('donate-nav-btn').addEventListener('click', openDonateModal);
         document.getElementById('donate-modal-close').addEventListener('click', closeDonateModal);
@@ -470,8 +980,69 @@
             if (e.target.id === 'donate-modal') closeDonateModal();
         });
 
+        const reportModal = document.getElementById('report-modal');
+        document.getElementById('report-btn').addEventListener('click', () => { renderReport(); reportModal.classList.add('open'); });
+        document.getElementById('report-modal-close').addEventListener('click', () => reportModal.classList.remove('open'));
+        reportModal.addEventListener('click', (e) => { if (e.target.id === 'report-modal') reportModal.classList.remove('open'); });
+        document.getElementById('print-report-btn').addEventListener('click', () => window.print());
+        document.getElementById('reset-report-btn').addEventListener('click', () => { auditLog = []; renderReport(); });
+
+        function renderDonateQr() {
+            const canvas = document.getElementById('donateQr');
+            if (canvas && typeof QRCode !== 'undefined') {
+                QRCode.toCanvas(canvas, 'lightning:jon-hodl@rizful.com', { width: 160, margin: 2, color: { dark: '#000', light: '#fff' } }, (err) => {
+                    if (err) console.error(err);
+                });
+            }
+        }
+
+        // Node panel
+        const nodePanel = document.getElementById('nodePanel');
+        document.getElementById('node-toggle-btn').addEventListener('click', () => {
+            nodePanel.classList.toggle('open');
+        });
+        document.getElementById('disable-node-btn').addEventListener('click', () => {
+            useCustomNode = false;
+            document.getElementById('nodeError').textContent = 'Using mempool.space.';
+            nodePanel.classList.remove('open');
+        });
+        document.getElementById('enable-node-btn').addEventListener('click', () => {
+            const url = document.getElementById('rpcUrl').value.trim();
+            if (!url) {
+                document.getElementById('nodeError').textContent = 'Enter an RPC URL.';
+                return;
+            }
+            customNode.url = url;
+            customNode.user = document.getElementById('rpcUser').value.trim();
+            customNode.pass = document.getElementById('rpcPass').value;
+            useCustomNode = true;
+            document.getElementById('nodeError').textContent = 'Custom node enabled. Commands will route there. CORS errors are expected for local nodes.';
+        });
+
+        let useCustomNode = false;
+        let customNode = { url: '', user: '', pass: '' };
+
+        async function rpcCall(method, params = []) {
+            const auth = btoa(`${customNode.user}:${customNode.pass}`);
+            const res = await fetch(customNode.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${auth}` },
+                body: JSON.stringify({ jsonrpc: '1.0', id: 1, method, params })
+            });
+            if (!res.ok) throw new Error(`RPC ${res.status}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error.message);
+            return data.result;
+        }
+
+        // Terminal
         const terminal = document.getElementById('terminalBody');
         const input = document.getElementById('cliInput');
+        const completionHint = document.getElementById('completionHint');
+        let commandHistory = [];
+        let historyIndex = -1;
+        let auditLog = [];
+        let currentOutput = null;
 
         function addLine(text, className = 'output') {
             const line = document.createElement('div');
@@ -479,10 +1050,12 @@
             line.textContent = text;
             terminal.appendChild(line);
             terminal.scrollTop = terminal.scrollHeight;
+            if (currentOutput) currentOutput.push({ text, className });
         }
 
         function addJson(obj, note) {
-            addLine(JSON.stringify(obj, null, 2), 'output');
+            const text = JSON.stringify(obj, null, 2);
+            addLine(text, 'output');
             if (note) addLine(note, 'note');
         }
 
@@ -503,11 +1076,10 @@
         }
 
         function computeIssuedSupply(height) {
-            // Sum block subsidies up to and including height.
             const halvingInterval = 210000;
             let supply = 0;
             let era = 0;
-            let remaining = height + 1; // include genesis
+            let remaining = height + 1;
             while (remaining > 0) {
                 const blocksInEra = Math.min(halvingInterval, remaining);
                 const subsidy = 50 / Math.pow(2, era);
@@ -525,171 +1097,297 @@
             return `${hps} H/s`;
         }
 
+        function formatDuration(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const parts = [];
+            if (days > 0) parts.push(`${days}d`);
+            if (hours > 0) parts.push(`${hours}h`);
+            if (mins > 0) parts.push(`${mins}m`);
+            return parts.join(' ') || '< 1m';
+        }
+
+        function parseCommand(raw) {
+            const trimmed = raw.trim();
+            const space = trimmed.indexOf(' ');
+            const name = space === -1 ? trimmed : trimmed.slice(0, space).toLowerCase();
+            const args = space === -1 ? '' : trimmed.slice(space + 1).trim();
+            return { name, args, raw: trimmed };
+        }
+
+        function getKnownCommands() {
+            return Object.keys(COMMANDS).sort();
+        }
+
+        function updateUrl(raw) {
+            try {
+                history.replaceState(null, '', `?cmd=${encodeURIComponent(raw)}`);
+            } catch (e) {}
+        }
+
+        function validateAddress(address) {
+            const bech32 = /^(bc1)[a-z0-9]{6,87}$/;
+            const base58 = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/;
+            let isvalid = false;
+            let type = 'unknown';
+            if (bech32.test(address)) {
+                isvalid = true;
+                type = address.startsWith('bc1q') ? 'bech32 (v0)' : 'bech32m (taproot)';
+            } else if (base58.test(address)) {
+                isvalid = true;
+                type = address.startsWith('1') ? 'p2pkh' : 'p2sh';
+            }
+            return { isvalid, address, type, scriptPubKey: isvalid ? '~computed on request' : 'invalid' };
+        }
+
         const COMMANDS = {
             help: async () => {
                 addLine('Available commands:', 'output');
-                addLine('  getblockcount     - current block height', 'output');
-                addLine('  getbestblockhash  - hash of the latest block', 'output');
-                addLine('  gettxoutsetinfo   - total issued BTC / UTXO estimate', 'output');
-                addLine('  getmempoolinfo    - pending transaction stats', 'output');
-                addLine('  getnetworkhashps  - network hashrate', 'output');
-                addLine('  getdifficulty     - mining difficulty (approximate)', 'output');
-                addLine('  getblockchaininfo - chain status overview', 'output');
-                addLine('  estimatesmartfee  - fee estimate for next block', 'output');
-                addLine('  getrawmempool     - sample of pending tx IDs', 'output');
-                addLine("Hint: click the question cards above to run a command.", 'note');
+                const cmds = getKnownCommands();
+                cmds.forEach(c => addLine(`  ${c}`, 'output'));
+                addLine('Use ↑ / ↓ to recall history, Tab to complete command names.', 'note');
             },
 
+            clear: async () => { terminal.innerHTML = ''; },
+
             getblockcount: async () => {
+                if (useCustomNode) { const r = await rpcCall('getblockcount'); addLine(r, 'output'); return; }
                 const height = await mempoolText('/blocks/tip/height');
                 addLine(parseInt(height, 10), 'output');
-                addLine('This is the number of blocks mined since the genesis block. Anyone can verify it by running a node.', 'note');
+                addLine('Number of blocks mined since the genesis block.', 'note');
             },
 
             getbestblockhash: async () => {
+                if (useCustomNode) { const r = await rpcCall('getbestblockhash'); addLine(r, 'output'); return; }
                 const hash = await mempoolText('/blocks/tip/hash');
                 addLine(hash.trim(), 'output');
-                addLine('The unique fingerprint of the latest block. A node returns the exact same hash.', 'note');
+                addLine('Unique fingerprint of the latest block.', 'note');
+            },
+
+            getblockhash: async (args) => {
+                const height = parseInt(args, 10);
+                if (isNaN(height)) { addLine('Usage: getblockhash <height>', 'error'); return; }
+                if (useCustomNode) { const r = await rpcCall('getblockhash', [height]); addLine(r, 'output'); return; }
+                const hash = await mempoolText(`/block-height/${height}`);
+                addLine(hash.trim(), 'output');
+            },
+
+            getblock: async (args) => {
+                if (!args) { addLine('Usage: getblock <hash>', 'error'); return; }
+                if (useCustomNode) { const r = await rpcCall('getblock', [args, 1]); addJson(r); return; }
+                const data = await mempoolJson(`/block/${args}`);
+                const out = {
+                    hash: data.id,
+                    height: data.height,
+                    version: data.version,
+                    time: data.timestamp,
+                    mediantime: data.mediantime,
+                    nonce: data.nonce,
+                    bits: data.bits,
+                    difficulty: data.difficulty,
+                    nTx: data.tx_count,
+                    previousblockhash: data.previousblockhash,
+                    size: data.size,
+                    weight: data.weight
+                };
+                addJson(out, `Block ${data.height} mined ${new Date(data.timestamp * 1000).toUTCString()}.`);
             },
 
             gettxoutsetinfo: async () => {
+                if (useCustomNode) { const r = await rpcCall('gettxoutsetinfo'); addJson(r); return; }
                 const height = parseInt(await mempoolText('/blocks/tip/height'), 10);
                 const bestblock = (await mempoolText('/blocks/tip/hash')).trim();
                 const totalAmount = computeIssuedSupply(height);
-                const out = {
-                    height: height,
-                    bestblock: bestblock,
-                    transactions: '~estimate',
-                    txouts: '~estimate',
-                    bogosize: '~estimate',
-                    hash_serialized_2: '~requires full node',
-                    disk_size: '~requires full node',
-                    total_amount: totalAmount
-                };
-                addJson(out, `≈ ${totalAmount.toLocaleString('en-US', { maximumFractionDigits: 8 })} BTC have been issued up to block ${height}. The exact UTXO set requires a real node, but the supply schedule is math anyone can verify.`);
+                addJson({
+                    height, bestblock, transactions: '~estimate', txouts: '~estimate', bogosize: '~estimate',
+                    hash_serialized_2: '~requires full node', disk_size: '~requires full node', total_amount: totalAmount
+                }, `≈ ${totalAmount.toLocaleString('en-US', { maximumFractionDigits: 8 })} BTC issued up to block ${height}.`);
             },
 
             getmempoolinfo: async () => {
+                if (useCustomNode) { const r = await rpcCall('getmempoolinfo'); addJson(r); return; }
                 const data = await mempoolJson('/mempool');
-                const out = {
-                    loaded: true,
-                    size: data.count,
-                    bytes: data.vsize,
-                    usage: data.vsize,
-                    total_fee: formatBtc(data.total_fee),
-                    mempoolminfee: 0.00001000,
-                    minrelaytxfee: 0.00001000
-                };
-                addJson(out, `${data.count.toLocaleString()} transactions are waiting to be confirmed, paying ~${formatBtc(data.total_fee)} BTC in total fees.`);
+                addJson({
+                    loaded: true, size: data.count, bytes: data.vsize, usage: data.vsize,
+                    total_fee: formatBtc(data.total_fee), mempoolminfee: 0.00001000, minrelaytxfee: 0.00001000
+                }, `${data.count.toLocaleString()} txs waiting, ~${formatBtc(data.total_fee)} BTC in fees.`);
             },
 
             getnetworkhashps: async () => {
+                if (useCustomNode) { const r = await rpcCall('getnetworkhashps'); addLine(r, 'output'); return; }
                 const data = await mempoolJson('/v1/mining/hashrate/1m');
                 const rates = data.hashrates || [];
                 const current = rates.length ? rates[rates.length - 1].avgHashrate : 0;
-                addLine(JSON.stringify({
-                    hashrate_hps: current,
-                    hashrate: formatHashrate(current)
-                }, null, 2), 'output');
-                addLine(`The network is currently doing about ${formatHashrate(current)} of proof-of-work every second.`, 'note');
+                addJson({ hashrate_hps: current, hashrate: formatHashrate(current) }, `About ${formatHashrate(current)} of proof-of-work per second.`);
             },
 
             getdifficulty: async () => {
+                if (useCustomNode) { const r = await rpcCall('getdifficulty'); addLine(r, 'output'); return; }
                 const data = await mempoolJson('/v1/mining/hashrate/1m');
                 const rates = data.hashrates || [];
                 const current = rates.length ? rates[rates.length - 1].avgHashrate : 0;
-                // difficulty ≈ hashrate * 600 / 2^32
                 const difficulty = (current * 600) / Math.pow(2, 32);
-                addLine(JSON.stringify({
+                addJson({ difficulty: difficulty.toExponential(6), approximation: 'from public hashrate estimate' }, 'A node returns the exact consensus difficulty.');
+            },
+
+            getmininginfo: async () => {
+                if (useCustomNode) { const r = await rpcCall('getmininginfo'); addJson(r); return; }
+                const [height, bestblock, data] = await Promise.all([
+                    mempoolText('/blocks/tip/height'),
+                    mempoolText('/blocks/tip/hash'),
+                    mempoolJson('/v1/mining/hashrate/1m')
+                ]);
+                const rates = data.hashrates || [];
+                const current = rates.length ? rates[rates.length - 1].avgHashrate : 0;
+                const difficulty = (current * 600) / Math.pow(2, 32);
+                addJson({
+                    blocks: parseInt(height, 10),
+                    bestblockhash: bestblock.trim(),
                     difficulty: difficulty.toExponential(6),
-                    approximation: 'computed from public hashrate estimate'
-                }, null, 2), 'output');
-                addLine('A real node returns the exact difficulty from its consensus state. This is a close approximation from network hashrate.', 'note');
+                    networkhashps: current,
+                    networkhashps_formatted: formatHashrate(current)
+                }, 'Mining summary from public data.');
             },
 
             getblockchaininfo: async () => {
+                if (useCustomNode) { const r = await rpcCall('getblockchaininfo'); addJson(r); return; }
                 const height = parseInt(await mempoolText('/blocks/tip/height'), 10);
                 const bestblock = (await mempoolText('/blocks/tip/hash')).trim();
-                const out = {
-                    chain: 'main',
-                    blocks: height,
-                    headers: height,
-                    bestblockhash: bestblock,
-                    difficulty: '~see getdifficulty',
-                    mediantime: '~requires node',
-                    verificationprogress: 1,
-                    initialblockdownload: false,
-                    chainwork: '~requires node',
-                    size_on_disk: '~requires node',
-                    pruned: false,
-                    softforks: {}
-                };
-                addJson(out, 'This is the kind of high-level summary a node gives you about the chain it has validated.');
+                addJson({
+                    chain: 'main', blocks: height, headers: height, bestblockhash: bestblock,
+                    difficulty: '~see getdifficulty', mediantime: '~requires node', verificationprogress: 1,
+                    initialblockdownload: false, chainwork: '~requires node', size_on_disk: '~requires node', pruned: false
+                }, 'High-level chain summary.');
             },
 
             estimatesmartfee: async () => {
+                if (useCustomNode) { const r = await rpcCall('estimatesmartfee', [1]); addJson(r); return; }
                 const fees = await mempoolJson('/v1/fees/recommended');
-                // sat/vB -> BTC/kvB
                 const feerate = (fees.fastestFee || 1) / 100000;
-                const out = {
-                    feerate: feerate.toFixed(8),
-                    blocks: 1,
-                    source: `${fees.fastestFee} sat/vB from mempool.space`
-                };
-                addJson(out, `To be included in the next block, a transaction currently needs about ${fees.fastestFee} sat/vByte.`);
+                addJson({ feerate: feerate.toFixed(8), blocks: 1, source: `${fees.fastestFee} sat/vB` }, `Next block: ~${fees.fastestFee} sat/vByte.`);
             },
 
             getrawmempool: async () => {
-                addLine('A real node returns thousands of tx IDs. Here is a simulated sample:', 'note');
-                const sample = [
-                    'a1b2c3d4e5f6...',
-                    'b2c3d4e5f6a7...',
-                    'c3d4e5f6a7b8...',
-                    'd4e5f6a7b8c9...',
-                    'e5f6a7b8c9d0...'
-                ];
-                addLine(JSON.stringify(sample, null, 2), 'output');
+                if (useCustomNode) { const r = await rpcCall('getrawmempool'); addJson(r.slice(0, 20)); return; }
+                addLine('A node returns thousands of tx IDs. Simulated sample:', 'note');
+                addJson(['a1b2c3...', 'b2c3d4...', 'c3d4e5...', 'd4e5f6...', 'e5f6a7...']);
+            },
+
+            getrawtransaction: async (args) => {
+                if (!args) { addLine('Usage: getrawtransaction <txid>', 'error'); return; }
+                if (useCustomNode) { const r = await rpcCall('getrawtransaction', [args]); addLine(r, 'output'); return; }
+                const hex = await mempoolText(`/tx/${args}/hex`);
+                addLine(hex, 'output');
+            },
+
+            decoderawtransaction: async (args) => {
+                if (!args) { addLine('Usage: decoderawtransaction <hex|txid>', 'error'); return; }
+                const hexRe = /^[0-9a-fA-F]+$/;
+                const isTxid = args.length === 64 && hexRe.test(args);
+                if (isTxid) {
+                    if (useCustomNode) { const r = await rpcCall('decoderawtransaction', [args]); addJson(r); return; }
+                    const tx = await mempoolJson(`/tx/${args}`);
+                    addJson(tx, 'Decoded transaction from mempool.space.');
+                } else {
+                    addLine('Local raw-hex decoding is basic. Provide a 64-character txid for full decoding.', 'note');
+                    addLine(`hex length: ${args.length} chars`, 'output');
+                }
+            },
+
+            validateaddress: async (args) => {
+                if (!args) { addLine('Usage: validateaddress <address>', 'error'); return; }
+                addJson(validateAddress(args), 'This checks format only; it cannot tell if the address has ever been used.');
+            },
+
+            getpeerinfo: async () => {
+                addLine('Peer info requires a real node. A typical mainnet node has 8–10 outbound peers:', 'note');
+                addJson([
+                    { id: 0, addr: '192.0.2.1:8333', version: 70015, inbound: false, synced_headers: 975000 },
+                    { id: 1, addr: '198.51.100.5:8333', version: 70016, inbound: false, synced_headers: 975000 }
+                ]);
             }
         };
 
         async function runCommand(raw) {
-            const cmd = raw.trim().toLowerCase();
-            if (!cmd) return;
+            const { name, args } = parseCommand(raw);
+            if (!name) return;
 
-            addLine(`bitcoin-cli> ${raw}`, 'command');
+            if (name !== 'clear') {
+                addLine(`bitcoin-cli> ${raw}`, 'command');
+            }
 
-            if (cmd === 'clear') {
+            // history
+            if (commandHistory.length === 0 || commandHistory[commandHistory.length - 1] !== raw) {
+                commandHistory.push(raw);
+            }
+            historyIndex = commandHistory.length;
+            updateUrl(raw);
+
+            if (name === 'clear') {
                 terminal.innerHTML = '';
                 return;
             }
 
-            const handler = COMMANDS[cmd];
+            const handler = COMMANDS[name];
             if (!handler) {
-                addLine(`error: unknown command: ${raw}`, 'error');
-                addLine("Type 'help' for a list of commands.", 'note');
+                addLine(`error: unknown command: ${name}`, 'error');
+                addLine("Type 'help' for a list.", 'note');
                 return;
             }
 
+            currentOutput = [];
             try {
-                await handler();
+                await handler(args);
             } catch (err) {
                 addLine(`error: ${err.message}`, 'error');
-                addLine('Could not reach mempool.space. Make sure you are online and try again.', 'note');
+                if (useCustomNode) addLine('Custom node request failed. Check URL, credentials, and CORS/proxy setup.', 'note');
+                else addLine('Could not reach mempool.space. Check your connection.', 'note');
             }
+            if (currentOutput.length) {
+                auditLog.push({ command: raw, output: currentOutput });
+            }
+            currentOutput = null;
         }
 
         function handleInput() {
             const cmd = input.value;
             input.value = '';
+            completionHint.style.display = 'none';
             runCommand(cmd);
         }
 
-        // Run a friendly demo command on load.
-        window.addEventListener('DOMContentLoaded', () => {
-            input.focus();
+        // Tab completion
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const val = input.value.trim();
+                const matches = getKnownCommands().filter(c => c.startsWith(val.toLowerCase()));
+                if (matches.length === 1) {
+                    input.value = matches[0];
+                    completionHint.style.display = 'none';
+                } else if (matches.length > 1) {
+                    completionHint.textContent = matches.slice(0, 6).join('  ');
+                    completionHint.style.display = 'block';
+                } else {
+                    completionHint.style.display = 'none';
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (commandHistory.length === 0) return;
+                historyIndex = Math.max(0, historyIndex - 1);
+                input.value = commandHistory[historyIndex];
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (commandHistory.length === 0) return;
+                historyIndex = Math.min(commandHistory.length, historyIndex + 1);
+                input.value = historyIndex === commandHistory.length ? '' : commandHistory[historyIndex];
+            } else {
+                completionHint.style.display = 'none';
+            }
         });
 
-        // Copy zap address buttons
+        // Copy buttons
         document.querySelectorAll('[data-copy-zap]').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const addressEl = btn.parentElement.querySelector('[data-zap-address]');
@@ -699,19 +1397,70 @@
                     const original = btn.textContent;
                     btn.textContent = 'Copied!';
                     btn.classList.add('copied');
-                    setTimeout(() => {
-                        btn.textContent = original;
-                        btn.classList.remove('copied');
-                    }, 2000);
+                    setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 2000);
                 } catch (err) {
-                    const textArea = document.createElement('textarea');
-                    textArea.value = address;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textArea);
+                    const t = document.createElement('textarea'); t.value = address;
+                    document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t);
                 }
             });
+        });
+
+        // Report
+        function renderReport() {
+            const el = document.getElementById('reportContent');
+            if (auditLog.length === 0) { el.textContent = 'No commands recorded yet.'; return; }
+            el.textContent = auditLog.map(entry => {
+                return '> ' + entry.command + '\n' + entry.output.map(o => o.text).join('\n');
+            }).join('\n\n---\n\n');
+        }
+
+        // Live block feed
+        function startBlockFeed() {
+            const statusEl = document.getElementById('blockFeedStatus');
+            const infoEl = document.getElementById('blockFeedInfo');
+            const ws = new WebSocket('wss://mempool.space/api/v1/ws');
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ action: 'want', data: ['blocks'] }));
+            };
+            ws.onmessage = (msg) => {
+                try {
+                    const data = JSON.parse(msg.data);
+                    const block = data.block || (data.blocks && data.blocks[0]);
+                    if (block && block.height) {
+                        const timeAgo = block.timestamp ? formatDuration(Math.floor(Date.now() / 1000) - block.timestamp) + ' ago' : 'just now';
+                        infoEl.textContent = `#${block.height.toLocaleString()} • ${block.tx_count || '?'} txs • ${timeAgo}`;
+                        infoEl.classList.remove('muted');
+                        statusEl.classList.remove('offline');
+                    }
+                } catch (e) {}
+            };
+            ws.onerror = () => {
+                infoEl.textContent = 'Live feed unavailable';
+                infoEl.classList.add('muted');
+                statusEl.classList.add('offline');
+            };
+            ws.onclose = () => {
+                infoEl.textContent = 'Live feed disconnected';
+                infoEl.classList.add('muted');
+                statusEl.classList.add('offline');
+                setTimeout(startBlockFeed, 5000);
+            };
+        }
+
+        // URL param command
+        function runUrlCommand() {
+            const params = new URLSearchParams(window.location.search);
+            const cmd = params.get('cmd');
+            if (cmd) {
+                input.value = cmd;
+                runCommand(cmd);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            input.focus();
+            startBlockFeed();
+            runUrlCommand();
         });
     </script>
 </body>
