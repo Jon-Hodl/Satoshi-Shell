@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satoshi Shell</title>
+    <meta name="description" content="Run bitcoin-cli-style commands in your browser and see how anyone can audit the Bitcoin network.">
+    <style>
+        :root {
+            --bg: #0b0f19;
+            --surface: #151b29;
+            --card: #1e2538;
+            --border: #2a3247;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --bitcoin-orange: #f7931a;
+            --green: #4ade80;
+            --red: #f87171;
+            --terminal-bg: #0d1117;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        a { color: var(--bitcoin-orange); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        /* Header */
+        header {
+            text-align: center;
+            padding: 3rem 1rem 2rem;
+        }
+        header h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+        }
+        header h1 span { color: var(--bitcoin-orange); }
+        header p {
+            color: var(--muted);
+            margin-top: 0.75rem;
+            max-width: 640px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Container */
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 0 1rem 4rem;
+        }
+
+        /* Question cards */
+        .questions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .question-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .question-card:hover {
+            border-color: var(--bitcoin-orange);
+        }
+        .question-card h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .question-card p {
+            color: var(--muted);
+            font-size: 0.875rem;
+        }
+        .question-card .cmd {
+            color: var(--green);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.8rem;
+            margin-top: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Terminal */
+        .terminal {
+            background: var(--terminal-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+        .terminal-header .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .dot.red { background: var(--red); }
+        .dot.yellow { background: #facc15; }
+        .dot.green { background: var(--green); }
+        .terminal-title {
+            margin-left: 0.5rem;
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .terminal-body {
+            padding: 1rem;
+            min-height: 320px;
+            max-height: 520px;
+            overflow-y: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .terminal-line {
+            margin-bottom: 0.5rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .terminal-line.prompt {
+            color: var(--muted);
+        }
+        .terminal-line.output {
+            color: var(--text);
+        }
+        .terminal-line.command {
+            color: var(--bitcoin-orange);
+        }
+        .terminal-line.note {
+            color: var(--muted);
+            font-style: italic;
+        }
+        .terminal-line.error {
+            color: var(--red);
+        }
+        .terminal-input-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+        }
+        .terminal-input-row label {
+            color: var(--green);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .terminal-input-row input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        .terminal-input-row button {
+            background: var(--bitcoin-orange);
+            color: #fff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .terminal-input-row button:hover { background: #e5830a; }
+
+        /* Command reference */
+        .reference {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+        .reference h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+        .ref-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 0.75rem;
+        }
+        .ref-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .ref-item code {
+            color: var(--green);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-weight: 700;
+        }
+        .ref-item span {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--muted);
+            font-size: 0.875rem;
+            border-top: 1px solid var(--border);
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 600px) {
+            header h1 { font-size: 1.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Satoshi <span>Shell</span></h1>
+        <p>Remove the mystery. Anyone can audit the Bitcoin network with the same simple commands a node understands. Try a question, type a command, or just read the output.</p>
+    </header>
+
+    <main class="container">
+        <section class="questions">
+            <div class="question-card" onclick="runCommand('gettxoutsetinfo')">
+                <h3>What is the total supply of Bitcoin?</h3>
+                <p>See how many bitcoins have been issued so far.</p>
+                <div class="cmd">bitcoin-cli gettxoutsetinfo</div>
+            </div>
+            <div class="question-card" onclick="runCommand('getblockcount')">
+                <h3>How many blocks are there?</h3>
+                <p>The current block height of the timechain.</p>
+                <div class="cmd">bitcoin-cli getblockcount</div>
+            </div>
+            <div class="question-card" onclick="runCommand('getmempoolinfo')">
+                <h3>Is the mempool busy?</h3>
+                <p>Count pending transactions and total fees waiting.</p>
+                <div class="cmd">bitcoin-cli getmempoolinfo</div>
+            </div>
+            <div class="question-card" onclick="runCommand('getnetworkhashps')">
+                <h3>How much security backs the network?</h3>
+                <p>Estimate the current network hashrate.</p>
+                <div class="cmd">bitcoin-cli getnetworkhashps</div>
+            </div>
+        </section>
+
+        <section class="terminal">
+            <div class="terminal-header">
+                <span class="dot red"></span>
+                <span class="dot yellow"></span>
+                <span class="dot green"></span>
+                <span class="terminal-title">bitcoin-cli @ your-node</span>
+            </div>
+            <div class="terminal-body" id="terminalBody">
+                <div class="terminal-line note">Welcome to the Satoshi Shell.</div>
+                <div class="terminal-line note">Data comes from mempool.space, a community-run Bitcoin explorer. A real node returns the exact same values for most commands.</div>
+                <div class="terminal-line note">Type 'help' to see available commands.</div>
+                <div class="terminal-line prompt">bitcoin-cli&gt;</div>
+            </div>
+            <form class="terminal-input-row" onsubmit="event.preventDefault(); handleInput();">
+                <label for="cliInput">bitcoin-cli&gt;</label>
+                <input type="text" id="cliInput" placeholder="enter a command..." autocomplete="off" autofocus>
+                <button type="submit">Run</button>
+            </form>
+        </section>
+
+        <section class="reference">
+            <h2>Command Reference</h2>
+            <div class="ref-grid">
+                <div class="ref-item"><code>getblockcount</code><span>Current block height.</span></div>
+                <div class="ref-item"><code>getbestblockhash</code><span>Hash of the latest block.</span></div>
+                <div class="ref-item"><code>gettxoutsetinfo</code><span>Total issued BTC and UTXO stats (estimated here).</span></div>
+                <div class="ref-item"><code>getmempoolinfo</code><span>Pending transactions and mempool fees.</span></div>
+                <div class="ref-item"><code>getnetworkhashps</code><span>Network hashrate / security.</span></div>
+                <div class="ref-item"><code>getdifficulty</code><span>Mining difficulty (approximate).</span></div>
+                <div class="ref-item"><code>getblockchaininfo</code><span>Chain status, height, and soft-fork info.</span></div>
+                <div class="ref-item"><code>estimatesmartfee</code><span>Fee estimate for next block.</span></div>
+                <div class="ref-item"><code>getrawmempool</code><span>List of pending transaction IDs.</span></div>
+                <div class="ref-item"><code>help</code><span>Show this list.</span></div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Made with 🧨 by bitcoiners (Jon &amp; Finn) for bitcoiners.</p>
+    </footer>
+
+    <script>
+        const terminal = document.getElementById('terminalBody');
+        const input = document.getElementById('cliInput');
+
+        function addLine(text, className = 'output') {
+            const line = document.createElement('div');
+            line.className = `terminal-line ${className}`;
+            line.textContent = text;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function addJson(obj, note) {
+            addLine(JSON.stringify(obj, null, 2), 'output');
+            if (note) addLine(note, 'note');
+        }
+
+        async function mempoolJson(path) {
+            const res = await fetch(`https://mempool.space/api${path}`);
+            if (!res.ok) throw new Error(`mempool.space returned ${res.status}`);
+            return res.json();
+        }
+
+        async function mempoolText(path) {
+            const res = await fetch(`https://mempool.space/api${path}`);
+            if (!res.ok) throw new Error(`mempool.space returned ${res.status}`);
+            return res.text();
+        }
+
+        function formatBtc(sats) {
+            return (sats / 100000000).toLocaleString('en-US', { maximumFractionDigits: 8 });
+        }
+
+        function computeIssuedSupply(height) {
+            // Sum block subsidies up to and including height.
+            const halvingInterval = 210000;
+            let supply = 0;
+            let era = 0;
+            let remaining = height + 1; // include genesis
+            while (remaining > 0) {
+                const blocksInEra = Math.min(halvingInterval, remaining);
+                const subsidy = 50 / Math.pow(2, era);
+                supply += blocksInEra * subsidy;
+                remaining -= blocksInEra;
+                era++;
+            }
+            return supply;
+        }
+
+        function formatHashrate(hps) {
+            if (hps >= 1e18) return `${(hps / 1e18).toFixed(2)} EH/s`;
+            if (hps >= 1e15) return `${(hps / 1e15).toFixed(2)} PH/s`;
+            if (hps >= 1e12) return `${(hps / 1e12).toFixed(2)} TH/s`;
+            return `${hps} H/s`;
+        }
+
+        const COMMANDS = {
+            help: async () => {
+                addLine('Available commands:', 'output');
+                addLine('  getblockcount     - current block height', 'output');
+                addLine('  getbestblockhash  - hash of the latest block', 'output');
+                addLine('  gettxoutsetinfo   - total issued BTC / UTXO estimate', 'output');
+                addLine('  getmempoolinfo    - pending transaction stats', 'output');
+                addLine('  getnetworkhashps  - network hashrate', 'output');
+                addLine('  getdifficulty     - mining difficulty (approximate)', 'output');
+                addLine('  getblockchaininfo - chain status overview', 'output');
+                addLine('  estimatesmartfee  - fee estimate for next block', 'output');
+                addLine('  getrawmempool     - sample of pending tx IDs', 'output');
+                addLine("Hint: click the question cards above to run a command.", 'note');
+            },
+
+            getblockcount: async () => {
+                const height = await mempoolText('/blocks/tip/height');
+                addLine(parseInt(height, 10), 'output');
+                addLine('This is the number of blocks mined since the genesis block. Anyone can verify it by running a node.', 'note');
+            },
+
+            getbestblockhash: async () => {
+                const hash = await mempoolText('/blocks/tip/hash');
+                addLine(hash.trim(), 'output');
+                addLine('The unique fingerprint of the latest block. A node returns the exact same hash.', 'note');
+            },
+
+            gettxoutsetinfo: async () => {
+                const height = parseInt(await mempoolText('/blocks/tip/height'), 10);
+                const bestblock = (await mempoolText('/blocks/tip/hash')).trim();
+                const totalAmount = computeIssuedSupply(height);
+                const out = {
+                    height: height,
+                    bestblock: bestblock,
+                    transactions: '~estimate',
+                    txouts: '~estimate',
+                    bogosize: '~estimate',
+                    hash_serialized_2: '~requires full node',
+                    disk_size: '~requires full node',
+                    total_amount: totalAmount
+                };
+                addJson(out, `≈ ${totalAmount.toLocaleString('en-US', { maximumFractionDigits: 8 })} BTC have been issued up to block ${height}. The exact UTXO set requires a real node, but the supply schedule is math anyone can verify.`);
+            },
+
+            getmempoolinfo: async () => {
+                const data = await mempoolJson('/mempool');
+                const out = {
+                    loaded: true,
+                    size: data.count,
+                    bytes: data.vsize,
+                    usage: data.vsize,
+                    total_fee: formatBtc(data.total_fee),
+                    mempoolminfee: 0.00001000,
+                    minrelaytxfee: 0.00001000
+                };
+                addJson(out, `${data.count.toLocaleString()} transactions are waiting to be confirmed, paying ~${formatBtc(data.total_fee)} BTC in total fees.`);
+            },
+
+            getnetworkhashps: async () => {
+                const data = await mempoolJson('/v1/mining/hashrate/1m');
+                const rates = data.hashrates || [];
+                const current = rates.length ? rates[rates.length - 1].avgHashrate : 0;
+                addLine(JSON.stringify({
+                    hashrate_hps: current,
+                    hashrate: formatHashrate(current)
+                }, null, 2), 'output');
+                addLine(`The network is currently doing about ${formatHashrate(current)} of proof-of-work every second.`, 'note');
+            },
+
+            getdifficulty: async () => {
+                const data = await mempoolJson('/v1/mining/hashrate/1m');
+                const rates = data.hashrates || [];
+                const current = rates.length ? rates[rates.length - 1].avgHashrate : 0;
+                // difficulty ≈ hashrate * 600 / 2^32
+                const difficulty = (current * 600) / Math.pow(2, 32);
+                addLine(JSON.stringify({
+                    difficulty: difficulty.toExponential(6),
+                    approximation: 'computed from public hashrate estimate'
+                }, null, 2), 'output');
+                addLine('A real node returns the exact difficulty from its consensus state. This is a close approximation from network hashrate.', 'note');
+            },
+
+            getblockchaininfo: async () => {
+                const height = parseInt(await mempoolText('/blocks/tip/height'), 10);
+                const bestblock = (await mempoolText('/blocks/tip/hash')).trim();
+                const out = {
+                    chain: 'main',
+                    blocks: height,
+                    headers: height,
+                    bestblockhash: bestblock,
+                    difficulty: '~see getdifficulty',
+                    mediantime: '~requires node',
+                    verificationprogress: 1,
+                    initialblockdownload: false,
+                    chainwork: '~requires node',
+                    size_on_disk: '~requires node',
+                    pruned: false,
+                    softforks: {}
+                };
+                addJson(out, 'This is the kind of high-level summary a node gives you about the chain it has validated.');
+            },
+
+            estimatesmartfee: async () => {
+                const fees = await mempoolJson('/v1/fees/recommended');
+                // sat/vB -> BTC/kvB
+                const feerate = (fees.fastestFee || 1) / 100000;
+                const out = {
+                    feerate: feerate.toFixed(8),
+                    blocks: 1,
+                    source: `${fees.fastestFee} sat/vB from mempool.space`
+                };
+                addJson(out, `To be included in the next block, a transaction currently needs about ${fees.fastestFee} sat/vByte.`);
+            },
+
+            getrawmempool: async () => {
+                addLine('A real node returns thousands of tx IDs. Here is a simulated sample:', 'note');
+                const sample = [
+                    'a1b2c3d4e5f6...',
+                    'b2c3d4e5f6a7...',
+                    'c3d4e5f6a7b8...',
+                    'd4e5f6a7b8c9...',
+                    'e5f6a7b8c9d0...'
+                ];
+                addLine(JSON.stringify(sample, null, 2), 'output');
+            }
+        };
+
+        async function runCommand(raw) {
+            const cmd = raw.trim().toLowerCase();
+            if (!cmd) return;
+
+            addLine(`bitcoin-cli> ${raw}`, 'command');
+
+            if (cmd === 'clear') {
+                terminal.innerHTML = '';
+                return;
+            }
+
+            const handler = COMMANDS[cmd];
+            if (!handler) {
+                addLine(`error: unknown command: ${raw}`, 'error');
+                addLine("Type 'help' for a list of commands.", 'note');
+                return;
+            }
+
+            try {
+                await handler();
+            } catch (err) {
+                addLine(`error: ${err.message}`, 'error');
+                addLine('Could not reach mempool.space. Make sure you are online and try again.', 'note');
+            }
+        }
+
+        function handleInput() {
+            const cmd = input.value;
+            input.value = '';
+            runCommand(cmd);
+        }
+
+        // Run a friendly demo command on load.
+        window.addEventListener('DOMContentLoaded', () => {
+            input.focus();
+        });
+    </script>
+</body>
+</html>
